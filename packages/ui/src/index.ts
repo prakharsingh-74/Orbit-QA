@@ -1,4 +1,4 @@
-export * from "./utils";
+﻿export * from "./utils";
 export * from "./button";
 export * from "./card";
 export * from "./code";
@@ -16,6 +16,7 @@ export * from "./route";
 export { default as Frame } from "./frame";
 export * from "./icons";
 export * from "./loader";
+export * from "./chat-loader";
 export { default as Logo } from "./logo";
 export { default as Scanline } from "./scanline";
 export * from "./surfing";
