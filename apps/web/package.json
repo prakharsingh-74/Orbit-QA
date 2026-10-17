@@ -17,6 +17,7 @@
     "@ai-sdk/openai": "1.0.10",
     "@ai-sdk/ui-utils": "1.1.10",
     "@ai-sdk/xai": "1.1.10",
+    "@google/genai": "^2.30.0",
     "@gradio/client": "^1.10.0",
     "@next/third-parties": "^15.5.20",
     "@nodeops-createos/sandbox": "^0.8.2",

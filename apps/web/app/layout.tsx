@@ -1,4 +1,4 @@
-import "@/styles/globals.css";
+﻿import "../globals.css";
 
 import { Metadata } from "next";
 import { Toaster } from "sonner";
@@ -61,3 +61,4 @@ export default function RootLayout({
     </html>
   );
 }
+
