@@ -1,10 +1,10 @@
-# Orbit QA ??
+# Orbit QA - AI-powered self-healing browser testing agent
 
 **Find bugs. Reproduce them. Prove the fix.**
 
 Orbit QA is an AI-powered browser testing agent that automatically tests web workflows, detects failures, generates reproducible Playwright tests, and helps developers diagnose and verify fixes using isolated CreateOS sandboxes.
 
-Built for the **CreateOS × Stripe Projects Hackathon**.
+Built for the **CreateOS ï¿½ Stripe Projects Hackathon**.
 
 ---
 
@@ -102,12 +102,12 @@ flowchart TD
 
 Orbit QA features a clean, responsive two-panel layout:
 
-* **Left Panel — Browser Workspace:**
+* **Left Panel ï¿½ Browser Workspace:**
   - Target website live preview and browser view.
   - Active URL and real-time execution status.
   - Captured screenshots and visual timeline.
 
-* **Right Panel — Agent Workspace:**
+* **Right Panel ï¿½ Agent Workspace:**
   - Natural-language prompt and task input.
   - Live execution step timeline and progress indicator.
   - Generated Playwright test code viewer.
