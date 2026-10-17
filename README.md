@@ -1,159 +1,166 @@
-# Turborepo starter
+# Orbit QA ??
 
-This Turborepo starter is maintained by the Turborepo core team.
+**Find bugs. Reproduce them. Prove the fix.**
 
-## Using this example
+Orbit QA is an AI-powered browser testing agent that automatically tests web workflows, detects failures, generates reproducible Playwright tests, and helps developers diagnose and verify fixes using isolated CreateOS sandboxes.
 
-Run the following command:
+Built for the **CreateOS × Stripe Projects Hackathon**.
 
-```sh
-npx create-turbo@latest
+---
+
+## ?? Overview
+
+Manual testing is time-consuming, and traditional automated testing requires developers to write and maintain brittle test cases. **Orbit QA** simplifies this entire process by allowing developers to describe what they want to test in natural language.
+
+The agent executes the workflow, identifies failures, reproduces them with Playwright, analyzes the evidence, and proposes fixes when source code is available.
+
+---
+
+## ? Key Features
+
+- **AI-Powered Testing:** Test signup, login, onboarding, forms, and navigation using natural-language instructions.
+- **Automated Bug Detection:** Identify failed assertions, browser console errors, and relevant network failures.
+- **Bug Reproduction:** Generate and execute reproducible Playwright test cases.
+- **AI-Assisted Diagnosis:** Analyze test results and suggest likely root causes.
+- **Fix Suggestions:** Generate proposed code changes when the application's source code is accessible.
+- **Automated Verification:** Re-run tests to determine whether a proposed fix works.
+- **Isolated Execution:** Execute tests safely inside isolated CreateOS sandboxes.
+- **Visual Evidence:** Collect screenshots, console logs, network traces, and test results.
+- **Interactive Dashboard:** Monitor real-time browser activity, agent progress, errors, and outcomes.
+
+---
+
+## ?? How It Works
+
+1. **Input:** The developer enters a target website URL and testing instructions in natural language.
+2. **Plan:** The AI agent formulates an autonomous testing plan.
+3. **Execute:** Playwright executes the requested browser workflow.
+4. **Detect:** Orbit QA identifies failures, runtime exceptions, and captures evidence.
+5. **Reproduce:** The agent generates a standalone, reproducible Playwright test script.
+6. **Diagnose:** The AI analyzes collected evidence and pinpoints the probable root cause.
+7. **Patch:** If source code is available, the agent proposes a code fix.
+8. **Verify:** The test re-executes inside the sandbox to prove whether the fix works.
+9. **Report:** The dashboard presents the verdict with full visual and diagnostic logs.
+
+---
+
+## ??? Architecture
+
+```mermaid
+flowchart TD
+    A["Developer"] --> B["Orbit QA Dashboard"]
+    B --> C["Task API & Agent Controller"]
+    C --> D["AI Planning Agent"]
+    D --> E["Browser Test Orchestrator"]
+
+    E --> F["Playwright Browser"]
+    E --> G["CreateOS Sandbox"]
+
+    G --> H["Playwright Test Runner"]
+    H --> I["Target Web Application"]
+
+    F --> J["Evidence Collector"]
+    H --> J
+
+    J --> K["Screenshots, Logs, Traces<br/>& Test Results"]
+    K --> L["AI Failure Diagnosis"]
+
+    L --> M{"Source Code Available?"}
+    M -->|No| N["Diagnosis & Fix Suggestions"]
+    M -->|Yes| O["Proposed Code Patch"]
+
+    O --> P["Developer Approval"]
+    P --> Q["Re-run Tests"]
+    Q --> R{"Tests Passed?"}
+
+    R -->|Yes| S["Verified Fix"]
+    R -->|No| N
+
+    N --> T["Results Dashboard"]
+    S --> T
+    T --> B
 ```
 
-## What's inside?
+---
 
-This Turborepo includes the following packages/apps:
+## ??? Technology Stack
 
-### Apps and Packages
+| Technology | Purpose |
+|---|---|
+| **Turborepo** | High-performance monorepo build system (`apps/web`, `apps/docs`, `packages/*`) |
+| **Next.js & React** | Interactive full-stack web dashboard |
+| **TypeScript** | Strict, end-to-end type safety |
+| **AI Models (AI SDK)** | Test planning, failure diagnosis, and patch generation |
+| **Playwright** | Browser automation, user interaction, and test execution |
+| **CreateOS Sandbox SDK** | Isolated, secure execution environment for tests |
+| **Node.js** | Backend orchestration and task execution |
+| **Stripe Projects** | Hackathon project setup and service integration |
 
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `@next/eslint-plugin-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
+---
 
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
+## ??? User Interface
 
-### Utilities
+Orbit QA features a clean, responsive two-panel layout:
 
-This Turborepo has some additional tools already setup for you:
+* **Left Panel — Browser Workspace:**
+  - Target website live preview and browser view.
+  - Active URL and real-time execution status.
+  - Captured screenshots and visual timeline.
 
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
+* **Right Panel — Agent Workspace:**
+  - Natural-language prompt and task input.
+  - Live execution step timeline and progress indicator.
+  - Generated Playwright test code viewer.
+  - Console logs, network traces, and error details.
+  - Root cause analysis, code diffs, and verification controls.
 
-### Build
+---
 
-To build all apps and packages, run the following command:
+## ?? CreateOS Configuration
 
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
+Set up your CreateOS sandbox credentials in your environment variables:
 
-```sh
-cd my-turborepo
-turbo build
+```env
+CREATEOS_SANDBOX_BASE_URL=https://api-eu.sb.createos.sh/
+CREATEOS_SANDBOX_API_KEY=your_api_key_here
 ```
 
-Without global `turbo`, use your package manager:
+> **Note:** Obtain your API key through the official hackathon onboarding. Always keep credentials strictly server-side and never commit them to Git.
 
-```sh
-cd my-turborepo
-npx turbo build
-pnpm exec turbo build
-pnpm exec turbo build
+---
+
+## ?? Getting Started
+
+### 1. Prerequisites
+Ensure you have Node.js 18+ and `pnpm` installed:
+```bash
+npm install -g pnpm
 ```
 
-You can build a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
-
-```sh
-turbo build --filter=docs
+### 2. Install Dependencies
+```bash
+pnpm install
 ```
 
-Without global `turbo`:
-
-```sh
-npx turbo build --filter=docs
-pnpm exec turbo build --filter=docs
-pnpm exec turbo build --filter=docs
+### 3. Environment Setup
+Copy the example environment file and configure your keys:
+```bash
+cp apps/web/.env.example apps/web/.env.local
 ```
 
-### Develop
-
-To develop all apps and packages, run the following command:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo dev
+### 4. Run Development Server
+Start the Turborepo development workspace:
+```bash
+pnpm dev
+# or
+npx turbo run dev
 ```
 
-Without global `turbo`, use your package manager:
+* **Web Application:** [http://localhost:3000](http://localhost:3000)
+* **Documentation:** [http://localhost:3001](http://localhost:3001)
 
-```sh
-cd my-turborepo
-npx turbo dev
-pnpm exec turbo dev
-pnpm exec turbo dev
-```
+---
 
-You can develop a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
+## ?? License
 
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
-
-```sh
-turbo dev --filter=web
-```
-
-Without global `turbo`:
-
-```sh
-npx turbo dev --filter=web
-pnpm exec turbo dev --filter=web
-pnpm exec turbo dev --filter=web
-```
-
-### Remote Caching
-
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
-
-Turborepo can use a technique known as [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
-
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
-
-```sh
-cd my-turborepo
-turbo login
-```
-
-Without global `turbo`, use your package manager:
-
-```sh
-cd my-turborepo
-npx turbo login
-pnpm exec turbo login
-pnpm exec turbo login
-```
-
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
-
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
-
-```sh
-turbo link
-```
-
-Without global `turbo`:
-
-```sh
-npx turbo link
-pnpm exec turbo link
-pnpm exec turbo link
-```
-
-## Useful Links
-
-Learn more about the power of Turborepo:
-
-- [Tasks](https://turborepo.dev/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.dev/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.dev/docs/reference/configuration)
-- [CLI Usage](https://turborepo.dev/docs/reference/command-line-reference)
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
