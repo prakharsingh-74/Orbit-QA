@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { Button } from "@repo/ui";
-import { Zap, Clock, ShieldCheck, Check, Sparkles, Loader2, CreditCard, X } from "lucide-react";
+import { Zap, Clock, ShieldCheck, Check, Sparkles, Loader2, CreditCard, X, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -84,7 +84,7 @@ export function StripePricingModal({
         throw new Error(data.error || "Failed to start checkout");
       }
 
-      // Save pending plan locally in case user redirects back
+      // Save pending plan locally
       localStorage.setItem("orbit_selected_plan", planId);
       localStorage.setItem("orbit_selected_minutes", minutes.toString());
 
@@ -100,7 +100,7 @@ export function StripePricingModal({
   return (
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-sm">
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 15 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -122,13 +122,27 @@ export function StripePricingModal({
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-accent/15 border border-accent/30 text-accent">
                 <Zap className="h-6 w-6" />
               </div>
-              <h2 className="text-2xl sm:text-3xl font-mono font-bold tracking-tight">
-                Choose Your Sandbox Runtime
-              </h2>
+              <div className="flex items-center justify-center gap-2">
+                <h2 className="text-2xl sm:text-3xl font-mono font-bold tracking-tight">
+                  Choose Your Sandbox Runtime
+                </h2>
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 text-[11px] font-mono font-semibold tracking-wider uppercase">
+                  TEST CARD MODE
+                </span>
+              </div>
               <p className="text-fg-400 text-xs sm:text-sm max-w-lg mx-auto">
-                Select your instance duration. Secure payment is processed directly via Stripe,
+                Select your instance duration. Secure payment is processed via Stripe in test mode,
                 allocating your dedicated CreateOS browser VM for the selected runtime.
               </p>
+
+              {/* Test Card Banner */}
+              <div className="mx-auto max-w-lg mt-2 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/25 flex items-center justify-between text-xs font-mono text-amber-300">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="h-4 w-4 shrink-0 text-amber-400" />
+                  <span>Test Card: <code className="bg-black/40 px-1.5 py-0.5 rounded text-amber-200 font-bold">4242 •••• •••• 4242</code></span>
+                </div>
+                <div className="text-[11px] text-amber-400/80">Any date / CVC 123</div>
+              </div>
             </div>
 
             {/* Pricing Cards Grid */}
@@ -205,7 +219,7 @@ export function StripePricingModal({
                         ) : (
                           <>
                             <CreditCard className="h-3.5 w-3.5" />
-                            <span>Pay {plan.price} with Stripe</span>
+                            <span>Test Pay {plan.price}</span>
                           </>
                         )}
                       </Button>
@@ -219,7 +233,7 @@ export function StripePricingModal({
             <div className="mt-6 pt-3 border-t border-border/40 flex items-center justify-between text-xs text-fg-400">
               <div className="flex items-center gap-1.5 font-mono">
                 <ShieldCheck className="h-4 w-4 text-emerald-400" />
-                <span>Encrypted 256-bit Stripe Checkout</span>
+                <span>Stripe Test Mode Activated</span>
               </div>
               <div className="font-mono text-[11px]">
                 Instant CreateOS Sandbox Allocation
