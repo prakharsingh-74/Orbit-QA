@@ -1,14 +1,18 @@
-# Orbit QA - AI-powered self-healing browser testing agent
+﻿# Orbit QA: AI-powered self healing browser testing agent
 
 **Find bugs. Reproduce them. Prove the fix.**
 
 Orbit QA is an AI-powered browser testing agent that automatically tests web workflows, detects failures, generates reproducible Playwright tests, and helps developers diagnose and verify fixes using isolated CreateOS sandboxes.
 
-Built for the **CreateOS � Stripe Projects Hackathon**.
+Built for the **CreateOS Stripe Projects Hackathon**.
+
+<p align="center">
+  <img src="assets/preview.png" alt="Orbit QA Preview" width="100%" />
+</p>
 
 ---
 
-## ?? Overview
+## Overview
 
 Manual testing is time-consuming, and traditional automated testing requires developers to write and maintain brittle test cases. **Orbit QA** simplifies this entire process by allowing developers to describe what they want to test in natural language.
 
@@ -16,7 +20,7 @@ The agent executes the workflow, identifies failures, reproduces them with Playw
 
 ---
 
-## ? Key Features
+## Key Features
 
 - **AI-Powered Testing:** Test signup, login, onboarding, forms, and navigation using natural-language instructions.
 - **Automated Bug Detection:** Identify failed assertions, browser console errors, and relevant network failures.
@@ -30,7 +34,7 @@ The agent executes the workflow, identifies failures, reproduces them with Playw
 
 ---
 
-## ?? How It Works
+## How It Works
 
 1. **Input:** The developer enters a target website URL and testing instructions in natural language.
 2. **Plan:** The AI agent formulates an autonomous testing plan.
@@ -44,7 +48,7 @@ The agent executes the workflow, identifies failures, reproduces them with Playw
 
 ---
 
-## ??? Architecture
+## Architecture
 
 ```mermaid
 flowchart TD
@@ -83,7 +87,7 @@ flowchart TD
 
 ---
 
-## ??? Technology Stack
+## Technology Stack
 
 | Technology | Purpose |
 |---|---|
@@ -98,16 +102,16 @@ flowchart TD
 
 ---
 
-## ??? User Interface
+## User Interface
 
 Orbit QA features a clean, responsive two-panel layout:
 
-* **Left Panel � Browser Workspace:**
+* **Left Panel - Browser Workspace:**
   - Target website live preview and browser view.
   - Active URL and real-time execution status.
   - Captured screenshots and visual timeline.
 
-* **Right Panel � Agent Workspace:**
+* **Right Panel - Agent Workspace:**
   - Natural-language prompt and task input.
   - Live execution step timeline and progress indicator.
   - Generated Playwright test code viewer.
@@ -116,20 +120,21 @@ Orbit QA features a clean, responsive two-panel layout:
 
 ---
 
-## ?? CreateOS Configuration
+## CreateOS Configuration
 
 Set up your CreateOS sandbox credentials in your environment variables:
 
 ```env
 CREATEOS_SANDBOX_BASE_URL=https://api-eu.sb.createos.sh/
 CREATEOS_SANDBOX_API_KEY=your_api_key_here
+GEMINI_API_KEY=your_gemini_api_key_here
+STRIPE_SECRET_KEY=your_stripe_secret_key_here
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key_here
 ```
-
-> **Note:** Obtain your API key through the official hackathon onboarding. Always keep credentials strictly server-side and never commit them to Git.
 
 ---
 
-## ?? Getting Started
+## Getting Started
 
 ### 1. Prerequisites
 Ensure you have Node.js 18+ and `pnpm` installed:
@@ -157,10 +162,6 @@ npx turbo run dev
 ```
 
 * **Web Application:** [http://localhost:3000](http://localhost:3000)
-* **Documentation:** [http://localhost:3001](http://localhost:3001)
 
----
 
-## ?? License
 
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
