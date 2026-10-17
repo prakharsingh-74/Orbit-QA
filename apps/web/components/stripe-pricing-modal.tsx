@@ -139,7 +139,7 @@ export function StripePricingModal({
               <div className="mx-auto max-w-lg mt-2 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/25 flex items-center justify-between text-xs font-mono text-amber-300">
                 <div className="flex items-center gap-2">
                   <CreditCard className="h-4 w-4 shrink-0 text-amber-400" />
-                  <span>Test Card: <code className="bg-black/40 px-1.5 py-0.5 rounded text-amber-200 font-bold">4242 •••• •••• 4242</code></span>
+                  <span>Test Card: <code className="bg-black/40 px-1.5 py-0.5 rounded text-amber-200 font-bold">4242 .... .... 4242</code></span>
                 </div>
                 <div className="text-[11px] text-amber-400/80">Any date / CVC 123</div>
               </div>
