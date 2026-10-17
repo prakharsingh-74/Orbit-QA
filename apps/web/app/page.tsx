@@ -26,6 +26,8 @@ import { RepoBanner } from "@/components/repo-banner";
 import { SANDBOX_TIMEOUT_MS } from "@/lib/config";
 import { Surfing } from "@repo/ui";
 import { Inspector } from "@/components/inspector";
+import { StripePricingModal } from "@/components/stripe-pricing-modal";
+import { CreditCard, Sparkles } from "lucide-react";
 
 export default function Home() {
   const [sandboxId, setSandboxId] = useState<string | null>(null);
@@ -45,6 +47,47 @@ export default function Home() {
   const rightColumnRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const splitContainerRef = useRef<HTMLDivElement>(null);
+  const [pricingModalOpen, setPricingModalOpen] = useState(false);
+  const [allocatedMinutes, setAllocatedMinutes] = useState<number | null>(null);
+
+  // Check URL query parameters on load for Stripe checkout success
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get("session_id");
+    const plan = params.get("plan");
+    const mins = params.get("minutes");
+
+    if (sessionId) {
+      fetch(`/api/verify-payment?session_id=${sessionId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.paid) {
+            const m = data.minutes || (mins ? parseInt(mins, 10) : 5);
+            setAllocatedMinutes(m);
+            setTimeRemaining(m * 60);
+            toast.success(`Payment verified via Stripe! ${m}-minute CreateOS sandbox allocated.`);
+            // Clean URL query
+            window.history.replaceState({}, document.title, window.location.pathname);
+          } else {
+            setPricingModalOpen(true);
+          }
+        })
+        .catch(() => {
+          setPricingModalOpen(true);
+        });
+    } else {
+      // Check if user has an active session or prompt them with pricing
+      const savedMins = localStorage.getItem("orbit_selected_minutes");
+      if (savedMins) {
+        const m = parseInt(savedMins, 10);
+        setAllocatedMinutes(m);
+      } else {
+        // Open pricing modal on initial visit
+        const timer = setTimeout(() => setPricingModalOpen(true), 600);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -268,6 +311,14 @@ export default function Home() {
 
           <div className="hidden lg:flex items-center gap-2">
             <ThemeToggle />
+                        <Button
+              onClick={() => setPricingModalOpen(true)}
+              variant="outline"
+              className="text-xs font-mono border-accent/40 hover:border-accent text-accent bg-accent/5 hover:bg-accent/15 flex items-center gap-1.5 py-1.5 px-3"
+            >
+              <CreditCard className="h-3.5 w-3.5" />
+              <span>{allocatedMinutes ? `${allocatedMinutes}m Active` : "Pricing Plans"}</span>
+            </Button>
             <RepoBanner />
 
             <AnimatePresence>
@@ -494,6 +545,15 @@ export default function Home() {
           </div>
           </div>
         </div>
+              <StripePricingModal
+          open={pricingModalOpen}
+          onOpenChange={setPricingModalOpen}
+          allocatedMinutes={allocatedMinutes}
+          onPlanSelected={(mins) => {
+            setAllocatedMinutes(mins);
+            setTimeRemaining(mins * 60);
+          }}
+        />
       </Frame>
     </div>
   );

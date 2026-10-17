@@ -1,4 +1,4 @@
-﻿export const SANDBOX_TIMEOUT_MS = 300_000; // 5 minutes in milliseconds
+export const SANDBOX_TIMEOUT_MS = 300_000; // 5 minutes in milliseconds
 
 // Resolution boundaries used by the sandbox and optional screenshot scaling.
 export const MAX_RESOLUTION_WIDTH = 1280;
@@ -11,4 +11,4 @@ export const MIN_RESOLUTION_HEIGHT = 480;
 export const DEFAULT_RESOLUTION: [number, number] = [1280, 800];
 
 // Primary Vision / Reasoning model for Orbit QA
-export const GEMINI_MODEL = "gemini-2.5-flash";
+export const GEMINI_MODEL = "gemini-3.5-flash";

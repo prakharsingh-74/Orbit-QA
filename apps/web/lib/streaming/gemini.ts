@@ -1,6 +1,6 @@
 ﻿import { Sandbox } from "@nodeops-createos/sandbox";
 import { GoogleGenAI, Type, FunctionDeclaration } from "@google/genai";
-import { SSEEventType, SSEEvent, sleep } from "@/types/api";
+import { SSEEventType, SSEEvent, sleep, TestResultData } from "@/types/api";
 import {
   ComputerInteractionStreamerFacade,
   ComputerInteractionStreamerFacadeStreamProps,
@@ -8,23 +8,41 @@ import {
 import { ActionResponse } from "@/types/api";
 import { logDebug, logError } from "../logger";
 import { GEMINI_MODEL } from "../config";
-import { OpenAIComputerAction } from "@/types/geminiai";
 
 const INSTRUCTIONS = `
 You are Orbit QA, an intelligent autonomous browser testing and QA agent.
-You interact with a real desktop browser inside a secure CreateOS Sandbox microVM.
+You interact with a real desktop browser and terminal environment inside a secure CreateOS Sandbox microVM.
 
-Your mission is to execute requested user actions, test websites, explore user interfaces, inspect elements, verify workflows (like login, signup, checkout, forms), and report any bugs or unexpected behaviors.
+Your mission:
+1. Navigate to the requested website URL or launch the application.
+2. Formulate and execute Playwright tests or browser interactions to test the workflow (e.g. signup, login, navigation, form validation, buttons).
+3. Detect any visual bugs, console errors, broken assertions, or validation failures.
+4. If a failure or bug is detected:
+   - Generate the reproducible Playwright test script.
+   - Diagnose the root cause with evidence.
+   - If source code is involved, propose a targeted code patch diff.
+5. Report the full findings clearly.
 
-Capabilities:
-- You receive real-time screenshots from the CreateOS desktop environment.
-- Use 'click', 'double_click', 'type', 'keypress', 'drag', 'scroll', 'wait', and 'finish' tools to control the system.
-- Standard screen resolution is 1280x800. Choose coordinate (x, y) precisely based on what you see in the screenshot.
-- After taking actions, inspect the screen to check if the page loaded or changed.
-- When your goal is achieved or you have identified the test result/issue, call 'finish' with your final summary.
+Available Tools:
+- 'navigate': Open a target URL in browser
+- 'click', 'double_click', 'type', 'keypress', 'drag', 'scroll', 'wait'
+- 'run_bash': Run a shell command in the CreateOS container (e.g. npx playwright test, curl, ls, node)
+- 'record_test_result': Update the Inspector with test outcome, failure details, Playwright code, logs, and proposed diff patch
+- 'finish': Conclude the QA test session with summary
 `;
 
-const computerTools: FunctionDeclaration[] = [
+const orbitTools: FunctionDeclaration[] = [
+  {
+    name: "navigate",
+    description: "Navigate browser to a URL",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        url: { type: Type.STRING, description: "Target URL to open" },
+      },
+      required: ["url"],
+    },
+  },
   {
     name: "click",
     description: "Click at specific coordinates (x, y) on the screen.",
@@ -36,7 +54,7 @@ const computerTools: FunctionDeclaration[] = [
         button: {
           type: Type.STRING,
           enum: ["left", "right", "middle"],
-          description: "Mouse button to click. Default is left.",
+          description: "Mouse button. Default is left.",
         },
       },
       required: ["x", "y"],
@@ -56,95 +74,89 @@ const computerTools: FunctionDeclaration[] = [
   },
   {
     name: "type",
-    description: "Type text into the focused input field.",
+    description: "Type text into the focused field.",
     parameters: {
       type: Type.OBJECT,
       properties: {
-        text: { type: Type.STRING, description: "The string text to type" },
+        text: { type: Type.STRING, description: "Text to type" },
       },
       required: ["text"],
     },
   },
   {
     name: "keypress",
-    description:
-      "Press a key or keyboard shortcut (e.g. Return, BackSpace, Tab, Escape, ctrl+c, alt+f4).",
+    description: "Press keyboard keys (e.g. Return, BackSpace, Tab, Escape).",
     parameters: {
       type: Type.OBJECT,
       properties: {
         keys: {
           type: Type.ARRAY,
           items: { type: Type.STRING },
-          description: "List of key names to press together or in sequence.",
+          description: "Keys to press",
         },
       },
       required: ["keys"],
     },
   },
   {
-    name: "drag",
-    description: "Drag mouse cursor from start coordinate to end coordinate.",
-    parameters: {
-      type: Type.OBJECT,
-      properties: {
-        path: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              x: { type: Type.INTEGER },
-              y: { type: Type.INTEGER },
-            },
-            required: ["x", "y"],
-          },
-          description: "Sequence of points for the drag movement.",
-        },
-      },
-      required: ["path"],
-    },
-  },
-  {
     name: "scroll",
-    description: "Scroll at coordinates x, y with delta distance.",
+    description: "Scroll mouse at x, y.",
     parameters: {
       type: Type.OBJECT,
       properties: {
-        x: { type: Type.INTEGER, description: "X coordinate" },
-        y: { type: Type.INTEGER, description: "Y coordinate" },
-        delta_x: { type: Type.INTEGER, description: "Horizontal scroll delta" },
-        delta_y: {
-          type: Type.INTEGER,
-          description: "Vertical scroll delta (positive=down, negative=up)",
-        },
+        x: { type: Type.INTEGER },
+        y: { type: Type.INTEGER },
+        delta_y: { type: Type.INTEGER, description: "Vertical scroll (positive=down, negative=up)" },
       },
       required: ["x", "y", "delta_y"],
     },
   },
   {
     name: "wait",
-    description:
-      "Pause for milliseconds (e.g. waiting for page or animation to settle).",
+    description: "Pause for milliseconds.",
     parameters: {
       type: Type.OBJECT,
       properties: {
-        ms: {
-          type: Type.INTEGER,
-          description: "Duration in milliseconds to wait",
-        },
+        ms: { type: Type.INTEGER, description: "Milliseconds" },
       },
     },
   },
   {
-    name: "finish",
-    description:
-      "Declare the testing task complete or report final QA findings.",
+    name: "run_bash",
+    description: "Execute a bash shell command inside the CreateOS sandbox container and get stdout/stderr.",
     parameters: {
       type: Type.OBJECT,
       properties: {
-        summary: {
-          type: Type.STRING,
-          description: "Summary of the test run, results, and findings.",
-        },
+        command: { type: Type.STRING, description: "The shell command to run" },
+      },
+      required: ["command"],
+    },
+  },
+  {
+    name: "record_test_result",
+    description: "Publish test findings, failure details, generated Playwright script, and proposed fix diff to the Inspector.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        status: { type: Type.STRING, enum: ["passed", "failed"] },
+        failedStep: { type: Type.STRING, description: "The specific step that failed" },
+        expected: { type: Type.STRING, description: "Expected behavior" },
+        actual: { type: Type.STRING, description: "Actual behavior observed" },
+        diagnosis: { type: Type.STRING, description: "Root cause diagnosis" },
+        confidence: { type: Type.NUMBER, description: "Confidence score 0.0 to 1.0" },
+        playwrightCode: { type: Type.STRING, description: "Reproducible Playwright test script" },
+        diffPatch: { type: Type.STRING, description: "Proposed code patch in diff format" },
+      },
+      required: ["status"],
+    },
+  },
+  {
+    name: "finish",
+    description: "Conclude test run.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        summary: { type: Type.STRING, description: "Final test summary" },
       },
       required: ["summary"],
     },
@@ -170,10 +182,7 @@ export class GeminiComputerStreamer implements ComputerInteractionStreamerFacade
     this.ai = new GoogleGenAI({ apiKey });
   }
 
-  private async captureScreenshot(): Promise<{
-    base64: string;
-    buffer: Buffer;
-  }> {
+  private async captureScreenshot(): Promise<{ base64: string; buffer: Buffer }> {
     const raw = await this.desktop.computer.screenshot();
     const buffer = Buffer.from(raw);
     return {
@@ -187,13 +196,7 @@ export class GeminiComputerStreamer implements ComputerInteractionStreamerFacade
 
     switch (action.type) {
       case "click": {
-        const btn = (
-          action.button === "right"
-            ? "right"
-            : action.button === "middle"
-              ? "middle"
-              : "left"
-        ) as "left" | "right" | "middle";
+        const btn = (action.button === "right" ? "right" : action.button === "middle" ? "middle" : "left") as "left" | "right" | "middle";
         await desktop.computer.mouse.click({
           x: action.x,
           y: action.y,
@@ -224,24 +227,10 @@ export class GeminiComputerStreamer implements ComputerInteractionStreamerFacade
         }
         break;
       }
-      case "drag": {
-        if (action.path && action.path.length >= 2) {
-          const start = action.path[0];
-          const end = action.path[action.path.length - 1];
-          await desktop.computer.mouse.drag({
-            from: { x: start.x, y: start.y },
-            to: { x: end.x, y: end.y },
-          });
-        }
-        break;
-      }
       case "scroll": {
         await desktop.computer.mouse.move({ x: action.x, y: action.y });
         const dir = (action.delta_y || 0) >= 0 ? "down" : "up";
-        const amt = Math.max(
-          1,
-          Math.abs(Math.round((action.delta_y || 100) / 100)),
-        );
+        const amt = Math.max(1, Math.abs(Math.round((action.delta_y || 100) / 100)));
         await desktop.computer.mouse.scroll({
           direction: dir,
           amount: amt,
@@ -252,7 +241,16 @@ export class GeminiComputerStreamer implements ComputerInteractionStreamerFacade
         await sleep(action.ms || 500);
         break;
       }
-      case "screenshot":
+      case "navigate": {
+        // Launch or open browser URL in CreateOS
+        try {
+          await (desktop as any).runCommand("sh", ["-c", `DISPLAY=:0 google-chrome --no-sandbox --disable-gpu --start-maximized "${action.url}" >/dev/null 2>&1 &`]);
+        } catch {
+          // ignore if runCommand fails
+        }
+        await sleep(1500);
+        break;
+      }
       default:
         break;
     }
@@ -268,10 +266,7 @@ export class GeminiComputerStreamer implements ComputerInteractionStreamerFacade
 
     logDebug("GEMINI_STREAM_START", { traceId, model: GEMINI_MODEL });
 
-    // Initial conversation contents
     const contents: any[] = [];
-
-    // Push previous textual conversation
     for (const msg of messages) {
       contents.push({
         role: msg.role === "assistant" ? "model" : "user",
@@ -291,10 +286,15 @@ export class GeminiComputerStreamer implements ComputerInteractionStreamerFacade
 
         turnIndex++;
 
-        // 1. Take a screenshot of the CreateOS desktop
+        // 1. Capture genuine CreateOS desktop screenshot
         const { base64 } = await this.captureScreenshot();
 
-        // Add screenshot to current user turn for Gemini vision
+        // Broadcast screenshot to UI
+        yield {
+          type: SSEEventType.SCREENSHOT,
+          base64: `data:image/png;base64,${base64}`,
+        };
+
         contents.push({
           role: "user",
           parts: [
@@ -308,13 +308,13 @@ export class GeminiComputerStreamer implements ComputerInteractionStreamerFacade
           ],
         });
 
-        // 2. Query Gemini model with tools
+        // 2. Query Gemini with vision and tools
         const response = await this.ai.models.generateContent({
           model: GEMINI_MODEL,
           contents,
           config: {
             systemInstruction: this.instructions,
-            tools: [{ functionDeclarations: computerTools }],
+            tools: [{ functionDeclarations: orbitTools }],
             temperature: 0.2,
           },
         });
@@ -322,7 +322,6 @@ export class GeminiComputerStreamer implements ComputerInteractionStreamerFacade
         const candidate = response.candidates?.[0];
         const parts = candidate?.content?.parts || [];
 
-        // Yield any reasoning/text content
         for (const part of parts) {
           if (part.text) {
             yield {
@@ -332,17 +331,12 @@ export class GeminiComputerStreamer implements ComputerInteractionStreamerFacade
           }
         }
 
-        // Look for function calls
         const functionCalls = parts
           .filter((p) => p.functionCall)
           .map((p) => p.functionCall!);
 
         if (!functionCalls || functionCalls.length === 0) {
-          // Model completed without further tool calls
-          const finalText = parts
-            .map((p) => p.text || "")
-            .join(" ")
-            .trim();
+          const finalText = parts.map((p) => p.text || "").join(" ").trim();
           yield {
             type: SSEEventType.DONE,
             content: finalText || "Task complete.",
@@ -351,8 +345,6 @@ export class GeminiComputerStreamer implements ComputerInteractionStreamerFacade
         }
 
         const functionResponses: any[] = [];
-
-        // Save model's turn
         contents.push({
           role: "model",
           parts,
@@ -370,37 +362,81 @@ export class GeminiComputerStreamer implements ComputerInteractionStreamerFacade
             return;
           }
 
-          // Map function call to OpenAIComputerAction shape for UI compatibility
-          let uiAction: any = { type: callName, ...args };
-          if (callName === "click") {
-            uiAction = {
-              type: "click",
-              x: args.x,
-              y: args.y,
-              button: args.button || "left",
+          if (callName === "record_test_result") {
+            yield {
+              type: SSEEventType.TEST_UPDATE,
+              data: {
+                status: args.status,
+                failedStep: args.failedStep,
+                expected: args.expected,
+                actual: args.actual,
+                diagnosis: args.diagnosis,
+                confidence: args.confidence,
+                playwrightCode: args.playwrightCode,
+                diffPatch: args.diffPatch,
+                screenshot: `data:image/png;base64,${base64}`,
+              },
             };
-          } else if (callName === "type") {
-            uiAction = {
-              type: "type",
-              text: args.text,
+
+            yield {
+              type: SSEEventType.LOG,
+              line: `[Orbit QA Inspector] Test status: ${args.status.toUpperCase()} - ${args.failedStep || "Step evaluation complete"}`,
             };
-          } else if (callName === "keypress") {
-            uiAction = {
-              type: "keypress",
-              keys: args.keys,
-            };
+
+            functionResponses.push({
+              functionResponse: {
+                name: callName,
+                response: { status: "recorded", success: true },
+              },
+            });
+            continue;
           }
 
+          if (callName === "run_bash") {
+            yield {
+              type: SSEEventType.LOG,
+              line: `$ ${args.command}`,
+            };
+
+            let cmdResult = { stdout: "", stderr: "", exit_code: 0 };
+            try {
+              const res = await (this.desktop as any).runCommand("sh", ["-c", args.command]);
+              cmdResult = res?.result || res || { stdout: "", stderr: "", exit_code: 0 };
+              if (cmdResult.stdout) {
+                yield { type: SSEEventType.LOG, line: cmdResult.stdout };
+              }
+              if (cmdResult.stderr) {
+                yield { type: SSEEventType.LOG, line: `[STDERR] ${cmdResult.stderr}` };
+              }
+            } catch (err: any) {
+              cmdResult = { stdout: "", stderr: err.message, exit_code: 1 };
+              yield { type: SSEEventType.LOG, line: `[ERROR] ${err.message}` };
+            }
+
+            functionResponses.push({
+              functionResponse: {
+                name: callName,
+                response: cmdResult,
+              },
+            });
+            continue;
+          }
+
+          let uiAction: any = { type: callName, ...args };
           yield {
             type: SSEEventType.ACTION,
-            action: uiAction as OpenAIComputerAction,
+            action: uiAction,
           };
 
-          // Execute action on CreateOS sandbox
           await this.executeAction(uiAction);
 
           yield {
             type: SSEEventType.ACTION_COMPLETED,
+          };
+
+          yield {
+            type: SSEEventType.LOG,
+            line: `[Action] Executed ${callName} ${JSON.stringify(args)}`,
           };
 
           functionResponses.push({
@@ -411,13 +447,11 @@ export class GeminiComputerStreamer implements ComputerInteractionStreamerFacade
           });
         }
 
-        // Add function responses back to contents
         contents.push({
           role: "user",
           parts: functionResponses,
         });
 
-        // Small wait between turns
         await sleep(300);
       }
 

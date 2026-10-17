@@ -36,6 +36,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+
 .projects/cache
 .projects/vault
 .projects/state.test.json
