@@ -21,9 +21,9 @@ const ibmPlexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Surf - E2B Computer Use Agent",
+  title: "Orbit QA - AI Browser Testing Agent",
   description:
-    "AI agent that interacts with a virtual desktop environment through natural language instructions",
+    "AI-powered browser testing and self-healing debugging agent",
   keywords: [
     "AI",
     "desktop",
@@ -61,4 +61,5 @@ export default function RootLayout({
     </html>
   );
 }
+
 

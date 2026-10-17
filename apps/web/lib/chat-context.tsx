@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, {
   createContext,
@@ -17,7 +17,7 @@ import {
   AssistantChatMessage,
   SystemChatMessage,
 } from "@/types/chat";
-import { SSEEventType } from "@/types/api";
+import { SSEEventType, TestResultData } from "@/types/api";
 import { logDebug, logError } from "./logger";
 
 interface ChatContextType extends ChatState {
@@ -30,7 +30,15 @@ interface ChatContextType extends ChatState {
   onSandboxCreated: (
     callback: (sandboxId: string, vncUrl: string) => void
   ) => void;
+  testResult: TestResultData;
+  setTestResult: React.Dispatch<React.SetStateAction<TestResultData>>;
+  currentScreenshot: string | null;
 }
+
+const defaultTestResult: TestResultData = {
+  status: "idle",
+  logs: [],
+};
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
@@ -43,40 +51,24 @@ export function ChatProvider({ children }: ChatProviderProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [input, setInput] = useState("");
+  const [testResult, setTestResult] = useState<TestResultData>(defaultTestResult);
+  const [currentScreenshot, setCurrentScreenshot] = useState<string | null>(null);
+
   const abortControllerRef = useRef<AbortController | null>(null);
   const onSandboxCreatedRef = useRef<
     ((sandboxId: string, vncUrl: string) => void) | undefined
   >(undefined);
 
-  const parseSSEEvent = (data: string): ParsedSSEEvent | null => {
+  const parseSSEEvent = (data: string): any | null => {
     try {
-      if (!data || data.trim() === "") {
-        return null;
-      }
-
+      if (!data || data.trim() === "") return null;
       if (data.startsWith("data: ")) {
         const jsonStr = data.substring(6).trim();
-
-        if (!jsonStr) {
-          return null;
-        }
-
+        if (!jsonStr) return null;
         return JSON.parse(jsonStr);
       }
-
-      const match = data.match(/data: ({.*})/);
-      if (match && match[1]) {
-        return JSON.parse(match[1]);
-      }
-
       return JSON.parse(data);
-    } catch (e) {
-      logError(
-        "Error parsing SSE event:",
-        e,
-        "Data:",
-        data.substring(0, 200) + (data.length > 200 ? "..." : "")
-      );
+    } catch {
       return null;
     }
   };
@@ -91,6 +83,12 @@ export function ChatProvider({ children }: ChatProviderProps) {
 
     setIsLoading(true);
     setError(null);
+    setTestResult((prev) => ({
+      ...prev,
+      status: "running",
+      objective: content,
+      logs: [...prev.logs, `[Orbit QA] Starting test objective: ${content}`],
+    }));
 
     const userMessage: ChatMessage = {
       role: "user",
@@ -99,7 +97,6 @@ export function ChatProvider({ children }: ChatProviderProps) {
     };
 
     setMessages((prev) => [...prev, userMessage]);
-
     abortControllerRef.current = new AbortController();
 
     try {
@@ -127,158 +124,93 @@ export function ChatProvider({ children }: ChatProviderProps) {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        throw new Error(await response.text());
       }
 
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("Response body is null");
+      if (!response.body) {
+        throw new Error("No response body");
+      }
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "system",
-          id: `system-message-${Date.now()}`,
-          content: "Task started",
-        },
-      ]);
-
+      const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let assistantMessage = "";
       let buffer = "";
 
       while (true) {
         const { done, value } = await reader.read();
+        if (done) break;
 
-        if (done) {
-          if (buffer.trim()) {
-            const parsedEvent = parseSSEEvent(buffer);
-            if (parsedEvent) {
-              if (parsedEvent.type === SSEEventType.DONE) {
-                setMessages((prev) => {
-                  const systemMessage: SystemChatMessage = {
-                    role: "system",
-                    id: `system-${Date.now()}`,
-                    content: "Task completed",
-                  };
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n\n");
+        buffer = lines.pop() || "";
 
-                  return [...prev, systemMessage];
-                });
-                setIsLoading(false);
-              }
-            }
-          }
-          break;
-        }
-
-        const chunk = decoder.decode(value, { stream: true });
-        buffer += chunk;
-
-        const events = buffer.split("\n\n");
-
-        buffer = events.pop() || "";
-
-        for (const event of events) {
-          if (!event.trim()) continue;
-
-          const parsedEvent = parseSSEEvent(event);
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const parsedEvent = parseSSEEvent(line);
           if (!parsedEvent) continue;
-
-          if (process.env.NODE_ENV === "development") {
-            logDebug("Parsed event:", parsedEvent);
-          }
 
           switch (parsedEvent.type) {
             case SSEEventType.ACTION:
               if (parsedEvent.action) {
-                const incomingAction = parsedEvent.action;
-                const actionMessage: ActionChatMessage = {
-                  role: "action",
-                  id: `action-${Date.now()}`,
-                  action: incomingAction,
-                  repeatCount: 1,
-                  status: "pending",
-                };
-
-                setMessages((prev) => {
-                  const isOpenAIWaitAction = incomingAction.type === "wait";
-
-                  if (!isOpenAIWaitAction) {
-                    return [...prev, actionMessage];
-                  }
-
-                  const lastMessage = prev.at(-1);
-                  if (!lastMessage || lastMessage.role !== "action") {
-                    return [...prev, actionMessage];
-                  }
-
-                  const lastActionMessage = lastMessage as ActionChatMessage;
-
-                  const lastActionIsOpenAIWait =
-                    lastActionMessage.action.type === "wait";
-
-                  if (!lastActionIsOpenAIWait) {
-                    return [...prev, actionMessage];
-                  }
-
-                  const repeatedWaitMessage: ActionChatMessage = {
-                    ...lastActionMessage,
-                    repeatCount: (lastActionMessage.repeatCount ?? 1) + 1,
+                setMessages((prev) => [
+                  ...prev,
+                  {
+                    role: "action",
+                    id: `action-${Date.now()}`,
+                    action: parsedEvent.action,
                     status: "pending",
-                  };
-
-                  return [
-                    ...prev.slice(0, -1),
-                    repeatedWaitMessage,
-                  ];
-                });
+                  },
+                ]);
               }
+              break;
+
+            case SSEEventType.ACTION_COMPLETED:
+              setMessages((prev) => {
+                const next = [...prev];
+                let lastIdx = -1; for (let i = next.length - 1; i >= 0; i--) { if (next[i]?.role === "action") { lastIdx = i; break; } }
+                if (lastIdx !== -1) {
+                  (next[lastIdx] as ActionChatMessage).status = "completed";
+                }
+                return next;
+              });
               break;
 
             case SSEEventType.REASONING:
-              if (typeof parsedEvent.content === "string") {
-                assistantMessage = parsedEvent.content;
-                const reasoningMessage: AssistantChatMessage = {
-                  role: "assistant",
-                  id: `assistant-${Date.now()}-${messages.length}`,
-                  content: assistantMessage,
-                };
-                setMessages((prev) => [...prev, reasoningMessage]);
-              }
-              break;
-
-            case SSEEventType.DONE:
-              setMessages((prev) => {
-                const systemMessage: SystemChatMessage = {
-                  role: "system",
-                  id: `system-${Date.now()}`,
-                  content: parsedEvent.content || "Task completed",
-                };
-
-                return [...prev, systemMessage];
-              });
-              setIsLoading(false);
-              break;
-
-            case SSEEventType.ERROR:
-              setError(parsedEvent.content);
               setMessages((prev) => [
                 ...prev,
                 {
-                  role: "system",
-                  id: `system-${Date.now()}`,
+                  role: "assistant",
+                  id: `assistant-${Date.now()}`,
                   content: parsedEvent.content,
-                  isError: true,
                 },
               ]);
-              setIsLoading(false);
+              break;
+
+            case SSEEventType.SCREENSHOT:
+              if (parsedEvent.base64) {
+                setCurrentScreenshot(parsedEvent.base64);
+              }
+              break;
+
+            case SSEEventType.TEST_UPDATE:
+              if (parsedEvent.data) {
+                setTestResult((prev) => ({
+                  ...prev,
+                  ...parsedEvent.data,
+                }));
+              }
+              break;
+
+            case SSEEventType.LOG:
+              if (parsedEvent.line) {
+                setTestResult((prev) => ({
+                  ...prev,
+                  logs: [...prev.logs, parsedEvent.line],
+                }));
+              }
               break;
 
             case SSEEventType.SANDBOX_CREATED:
-              if (
-                parsedEvent.sandboxId &&
-                parsedEvent.vncUrl &&
-                onSandboxCreatedRef.current
-              ) {
+              if (parsedEvent.sandboxId && onSandboxCreatedRef.current) {
                 onSandboxCreatedRef.current(
                   parsedEvent.sandboxId,
                   parsedEvent.vncUrl
@@ -286,90 +218,86 @@ export function ChatProvider({ children }: ChatProviderProps) {
               }
               break;
 
-            case SSEEventType.ACTION_COMPLETED:
-              setMessages((prev) => {
-                const lastActionIndex = [...prev]
-                  .reverse()
-                  .findIndex((msg) => msg.role === "action");
+            case SSEEventType.DONE:
+              setIsLoading(false);
+              break;
 
-                if (lastActionIndex !== -1) {
-                  const actualIndex = prev.length - 1 - lastActionIndex;
-
-                  return prev.map((msg, index) =>
-                    index === actualIndex
-                      ? { ...msg, status: "completed" }
-                      : msg
-                  );
-                }
-
-                return prev;
-              });
+            case SSEEventType.ERROR:
+              setError(parsedEvent.content);
+              setIsLoading(false);
               break;
           }
         }
       }
-    } catch (error) {
-      logError("Error sending message:", error);
-      setError(error instanceof Error ? error.message : "An error occurred");
+    } catch (err: any) {
+      if (err.name !== "AbortError") {
+        setError(err.message || "Failed to execute request");
+        setTestResult((prev) => ({
+          ...prev,
+          status: "failed",
+          error: err.message,
+          logs: [...prev.logs, `[Error] ${err.message}`],
+        }));
+      }
+    } finally {
       setIsLoading(false);
     }
   };
 
-  const stopGeneration = useCallback(() => {
+  const stopGeneration = () => {
     if (abortControllerRef.current) {
-      try {
-        abortControllerRef.current.abort(
-          new DOMException("Generation stopped by user", "AbortError")
-        );
-        setIsLoading(false);
-      } catch (error) {
-        logError("Error stopping generation:", error);
-        setIsLoading(false);
-      }
+      abortControllerRef.current.abort();
     }
-  }, []);
-
-  const clearMessages = useCallback(() => {
-    setMessages([]);
-    setError(null);
-  }, []);
-
-  const handleSubmit = useCallback(
-    (e: React.FormEvent): string | undefined => {
-      e.preventDefault();
-      if (!input.trim()) return;
-
-      const content = input.trim();
-      setInput("");
-      return content;
-    },
-    [input]
-  );
-
-  const value = {
-    messages,
-    isLoading,
-    error,
-    input,
-    setInput,
-    sendMessage,
-    stopGeneration,
-    clearMessages,
-    handleSubmit,
-    onSandboxCreated: (
-      callback: (sandboxId: string, vncUrl: string) => void
-    ) => {
-      onSandboxCreatedRef.current = callback;
-    },
+    setIsLoading(false);
   };
 
-  return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
+  const clearMessages = () => {
+    setMessages([]);
+    setTestResult(defaultTestResult);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim() || isLoading) return undefined;
+    const content = input;
+    setInput("");
+    return content;
+  };
+
+  const onSandboxCreated = (
+    callback: (sandboxId: string, vncUrl: string) => void
+  ) => {
+    onSandboxCreatedRef.current = callback;
+  };
+
+  return (
+    <ChatContext.Provider
+      value={{
+        messages,
+        isLoading,
+        error,
+        input,
+        setInput,
+        sendMessage,
+        stopGeneration,
+        clearMessages,
+        handleSubmit,
+        onSandboxCreated,
+        testResult,
+        setTestResult,
+        currentScreenshot,
+      }}
+    >
+      {children}
+    </ChatContext.Provider>
+  );
 }
 
 export function useChat() {
   const context = useContext(ChatContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error("useChat must be used within a ChatProvider");
   }
   return context;
 }
+

@@ -22,10 +22,10 @@ import { Frame } from "@repo/ui";
 import { Button } from "@repo/ui";
 import { Loader, AssemblyLoader } from "@repo/ui";
 import Link from "next/link";
-import { Logo } from "@repo/ui";
 import { RepoBanner } from "@/components/repo-banner";
 import { SANDBOX_TIMEOUT_MS } from "@/lib/config";
 import { Surfing } from "@repo/ui";
+import { Inspector } from "@/components/inspector";
 
 export default function Home() {
   const [sandboxId, setSandboxId] = useState<string | null>(null);
@@ -39,6 +39,40 @@ export default function Home() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const iFrameWrapperRef = useRef<HTMLDivElement>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [leftWidthPercent, setLeftWidthPercent] = useState<number>(55);
+  const [inspectorHeightPercent, setInspectorHeightPercent] = useState<number>(50);
+  const [isVerticalDragging, setIsVerticalDragging] = useState(false);
+  const rightColumnRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const splitContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isDragging && splitContainerRef.current) {
+        const rect = splitContainerRef.current.getBoundingClientRect();
+        const newPercent = ((e.clientX - rect.left) / rect.width) * 100;
+        setLeftWidthPercent(Math.min(Math.max(newPercent, 25), 75));
+      }
+      if (isVerticalDragging && rightColumnRef.current) {
+        const rect = rightColumnRef.current.getBoundingClientRect();
+        const newVPercent = ((e.clientY - rect.top) / rect.height) * 100;
+        setInspectorHeightPercent(Math.min(Math.max(newVPercent, 20), 70));
+      }
+    };
+
+    const handleMouseUp = () => {
+      if (isDragging) setIsDragging(false);
+      if (isVerticalDragging) setIsVerticalDragging(false);
+    };
+    if (isDragging || isVerticalDragging) {
+      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mouseup", handleMouseUp);
+    }
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isDragging, isVerticalDragging]);
 
   const {
     messages,
@@ -201,7 +235,7 @@ export default function Home() {
     <div className="w-full flex justify-center items-center h-dvh overflow-hidden p-2 sm:p-4 md:p-8 md:pb-10">
       <Frame
         classNames={{
-          wrapper: "w-full max-lg:h-full lg:aspect-[18/9] max-w-[2000px]",
+          wrapper: "w-full h-full max-w-[2200px]",
           frame: "flex flex-col h-full overflow-hidden",
         }}
       >
@@ -212,15 +246,8 @@ export default function Home() {
               className="flex items-center gap-1 sm:gap-2"
               target="_blank"
             >
-              <Logo height={20} width={45} className="sm:h-6 sm:w-[54px]" />
-              <h1 className="whitespace-pre">Surf - Computer Agent by </h1>
-            </Link>
-            <Link
-              href="https://e2b.dev"
-              className="underline decoration-accent decoration-1 underline-offset-2 text-accent"
-              target="_blank"
-            >
-              E2B
+
+              <h1 className="whitespace-pre font-mono font-semibold tracking-wide">Orbit QA</h1>
             </Link>
           </div>
 
@@ -353,10 +380,11 @@ export default function Home() {
           )}
         </AnimatePresence>
 
-        <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
+        <div ref={splitContainerRef} className={`flex flex-col lg:flex-row flex-1 overflow-hidden ${isDragging ? "cursor-col-resize select-none" : ""}`}>
           <div
             ref={iFrameWrapperRef}
-            className="relative w-full lg:flex-1 h-[40vh] lg:h-auto overflow-hidden"
+            style={{ width: typeof window !== "undefined" && window.innerWidth >= 1024 ? `${leftWidthPercent}%` : undefined }}
+            className="relative w-full h-[40vh] lg:h-auto overflow-hidden flex-shrink-0"
           >
             {isLoading || (chatLoading && !sandboxId) ? (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
@@ -396,7 +424,7 @@ export default function Home() {
                   <span className="text-fg">select</span> an example prompt to
                   start a new{" "}
                   <a
-                    href="https://github.com/e2b-dev/desktop"
+                    href="https://github.com/prakharsingh-74/Orbit-QA"
                     className="underline inline-flex items-center gap-1 decoration-accent decoration-1 underline-offset-2 text-accent"
                     target="_blank"
                   >
@@ -407,7 +435,43 @@ export default function Home() {
             )}
           </div>
 
-          <div className="flex-1 flex flex-col relative border-t lg:border-t-0 lg:border-l overflow-hidden h-[60vh] lg:h-auto lg:max-w-xl">
+          {/* Resizable drag handle line */}
+          <div
+            onMouseDown={() => setIsDragging(true)}
+            className="hidden lg:flex items-center justify-center w-2 -mx-1 z-30 cursor-col-resize group relative hover:bg-accent/40 active:bg-accent transition-colors duration-150 select-none"
+            title="Drag to resize panels"
+          >
+            <div className="w-[1px] h-full bg-border group-hover:bg-accent transition-colors" />
+            <div className="absolute w-4 h-8 bg-bg-200 border border-border rounded-full flex items-center justify-center shadow-md group-hover:border-accent">
+              <div className="w-1 h-3 border-x border-fg-400 opacity-60" />
+            </div>
+          </div>
+
+          {/* Right panel - Split Vertically between Inspector & Chat */}
+          <div
+            ref={rightColumnRef}
+            style={{ width: typeof window !== "undefined" && window.innerWidth >= 1024 ? `${100 - leftWidthPercent}%` : undefined }}
+            className={`flex-1 flex flex-col relative border-t lg:border-t-0 overflow-hidden h-[60vh] lg:h-auto ${isVerticalDragging ? "cursor-row-resize select-none" : ""}`}
+          >
+            {/* Top Section: Inspector */}
+            <div style={{ height: `${inspectorHeightPercent}%` }} className="w-full overflow-hidden p-2.5 pb-0 flex flex-col min-h-[180px] shrink-0">
+              <Inspector />
+            </div>
+
+            {/* Draggable Vertical Adjuster */}
+            <div
+              onMouseDown={() => setIsVerticalDragging(true)}
+              className="h-2 w-full my-0.5 cursor-row-resize group relative flex items-center justify-center hover:bg-accent/20 active:bg-accent/40 select-none transition-colors z-20"
+              title="Drag to resize Inspector and Chat"
+            >
+              <div className="h-[1px] w-full bg-border group-hover:bg-accent transition-colors" />
+              <div className="absolute h-3 w-8 bg-bg-200 border border-border rounded-full flex items-center justify-center shadow-sm group-hover:border-accent">
+                <div className="h-1 w-3 border-y border-fg-400 opacity-60" />
+              </div>
+            </div>
+
+            {/* Bottom Section: Chat */}
+            <div style={{ height: `${100 - inspectorHeightPercent}%` }} className="w-full flex-1 flex flex-col relative overflow-hidden min-h-[180px]">
             <ChatList className="flex-1" messages={messages} />
 
             {messages.length === 0 && (
@@ -428,8 +492,19 @@ export default function Home() {
               className="absolute bottom-3 left-3 right-3"
             />
           </div>
+          </div>
         </div>
       </Frame>
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
