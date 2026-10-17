@@ -56,11 +56,6 @@ export function ExamplePrompts({
       prompt:
         "Open Firefox and go to GitHub to search for popular machine learning repositories",
     },
-    {
-      text: "Create a spreadsheet",
-      prompt:
-        "Open LibreOffice Calc and create a simple budget spreadsheet with formulas",
-    },
   ],
   disabled = false,
   className,
