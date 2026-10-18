@@ -244,7 +244,7 @@ export class GeminiComputerStreamer implements ComputerInteractionStreamerFacade
       case "navigate": {
         // Launch or open browser URL in CreateOS
         try {
-          await (desktop as any).runCommand("sh", ["-c", `DISPLAY=:0 google-chrome --no-sandbox --disable-gpu --start-maximized "${action.url}" >/dev/null 2>&1 &`]);
+          await (desktop as any).runCommand("sh", ["-c", `DISPLAY=:0 /usr/bin/google-chrome --no-sandbox --disable-dev-shm-usage --disable-gpu --window-size=1280,800 "${action.url}" >/dev/null 2>&1 &`]);
         } catch {
           // ignore if runCommand fails
         }
