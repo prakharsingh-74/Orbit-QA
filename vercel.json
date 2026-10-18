@@ -1,5 +1,5 @@
 {
-  "buildCommand": "pnpm --filter web build",
-  "installCommand": "pnpm install --ignore-scripts",
+  "buildCommand": "npx --yes pnpm@9.15.4 --filter web build",
+  "installCommand": "npx --yes pnpm@9.15.4 install",
   "framework": "nextjs"
 }
