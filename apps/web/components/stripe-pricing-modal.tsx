@@ -11,6 +11,7 @@ interface StripePricingModalProps {
   onOpenChange: (open: boolean) => void;
   allocatedMinutes?: number | null;
   onPlanSelected?: (minutes: number) => void;
+  mandatory?: boolean;
 }
 
 export function StripePricingModal({
@@ -18,6 +19,7 @@ export function StripePricingModal({
   onOpenChange,
   allocatedMinutes,
   onPlanSelected,
+  mandatory = false,
 }: StripePricingModalProps) {
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
 
@@ -108,14 +110,16 @@ export function StripePricingModal({
             transition={{ duration: 0.2 }}
             className="relative w-full max-w-4xl p-6 sm:p-8 bg-bg-100 dark:bg-bg-200 border border-border text-fg rounded-xl shadow-2xl overflow-hidden"
           >
-            {/* Close Button */}
-            <button
-              onClick={() => onOpenChange(false)}
-              className="absolute top-4 right-4 text-fg-400 hover:text-fg transition-colors p-1 rounded-md"
-              title="Close modal"
-            >
-              <X className="h-5 w-5" />
-            </button>
+            {/* Close Button - hidden if access is locked awaiting initial payment */}
+            {!mandatory && (
+              <button
+                onClick={() => onOpenChange(false)}
+                className="absolute top-4 right-4 text-fg-400 hover:text-fg transition-colors p-1 rounded-md"
+                title="Close modal"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            )}
 
             {/* Header */}
             <div className="space-y-2 text-center pb-2">

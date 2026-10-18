@@ -34,9 +34,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [vncUrl, setVncUrl] = useState<string | null>(null);
   const { theme, setTheme } = useTheme();
-  const [timeRemaining, setTimeRemaining] = useState<number>(
-    SANDBOX_TIMEOUT_MS / 1000
-  );
+  const [timeRemaining, setTimeRemaining] = useState<number>(0);
   const [isTabVisible, setIsTabVisible] = useState<boolean>(true);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const iFrameWrapperRef = useRef<HTMLDivElement>(null);
@@ -50,7 +48,7 @@ export default function Home() {
   const [pricingModalOpen, setPricingModalOpen] = useState(false);
   const [allocatedMinutes, setAllocatedMinutes] = useState<number | null>(null);
 
-  // Check URL query parameters on load for Stripe checkout success
+  // Check URL query parameters on load for Stripe checkout success or require payment
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const sessionId = params.get("session_id");
@@ -65,7 +63,10 @@ export default function Home() {
             const m = data.minutes || (mins ? parseInt(mins, 10) : 5);
             setAllocatedMinutes(m);
             setTimeRemaining(m * 60);
-            toast.success(`Payment verified via Stripe! ${m}-minute CreateOS sandbox allocated.`);
+            localStorage.setItem("orbit_paid_access", "true");
+            localStorage.setItem("orbit_selected_minutes", m.toString());
+            setPricingModalOpen(false);
+            toast.success(`Payment verified via Stripe! ${m}-minute CreateOS testing sandbox allocated.`);
             // Clean URL query
             window.history.replaceState({}, document.title, window.location.pathname);
           } else {
@@ -76,15 +77,17 @@ export default function Home() {
           setPricingModalOpen(true);
         });
     } else {
-      // Check if user has an active session or prompt them with pricing
+      // Check verified active paid access from local storage
+      const hasPaid = localStorage.getItem("orbit_paid_access") === "true";
       const savedMins = localStorage.getItem("orbit_selected_minutes");
-      if (savedMins) {
+      if (hasPaid && savedMins) {
         const m = parseInt(savedMins, 10);
         setAllocatedMinutes(m);
+        setTimeRemaining(m * 60);
+        setPricingModalOpen(false);
       } else {
-        // Open pricing modal on initial visit
-        const timer = setTimeout(() => setPricingModalOpen(true), 600);
-        return () => clearTimeout(timer);
+        // Enforce payment modal before any sandbox or agent workflow is started
+        setPricingModalOpen(true);
       }
     }
   }, []);
@@ -152,7 +155,7 @@ export default function Home() {
           setSandboxId(null);
           setVncUrl(null);
           clearMessages();
-          setTimeRemaining(SANDBOX_TIMEOUT_MS / 1000);
+          setTimeRemaining(allocatedMinutes ? allocatedMinutes * 60 : 0);
           toast("Sandbox instance stopped");
         } else {
           toast.error("Failed to stop sandbox instance");
@@ -178,6 +181,12 @@ export default function Home() {
   };
 
   const onSubmit = (e: React.FormEvent) => {
+    if (!allocatedMinutes) {
+      e.preventDefault();
+      setPricingModalOpen(true);
+      toast.error("Please complete payment first to start your QA agent sandbox.");
+      return;
+    }
     const content = handleSubmit(e);
     if (content) {
       const width =
@@ -199,6 +208,11 @@ export default function Home() {
   };
 
   const handleExampleClick = (prompt: string) => {
+    if (!allocatedMinutes) {
+      setPricingModalOpen(true);
+      toast.error("Please complete payment first to start your QA agent sandbox.");
+      return;
+    }
     const width =
       iFrameWrapperRef.current?.clientWidth ||
       (window.innerWidth < 768 ? window.innerWidth - 32 : 1024);
@@ -217,7 +231,7 @@ export default function Home() {
   const handleSandboxCreated = (newSandboxId: string, newVncUrl: string) => {
     setSandboxId(newSandboxId);
     setVncUrl(newVncUrl);
-    setTimeRemaining(SANDBOX_TIMEOUT_MS / 1000);
+    setTimeRemaining(allocatedMinutes ? allocatedMinutes * 60 : 300);
     toast.success("Sandbox instance created");
   };
 
@@ -468,20 +482,26 @@ export default function Home() {
                 allow="clipboard-read; clipboard-write"
               />
             ) : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
-                <Surfing className="text-[7px] leading-[7px] text-accent font-bold" />
-                <h1 className="text-center text-fg-300 max-w-xs">
-                  <span className="text-fg">Type</span> a message or{" "}
-                  <span className="text-fg">select</span> an example prompt to
-                  start a new{" "}
-                  <a
-                    href="https://github.com/prakharsingh-74/Orbit-QA"
-                    className="underline inline-flex items-center gap-1 decoration-accent decoration-1 underline-offset-2 text-accent"
-                    target="_blank"
+              <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center gap-5">
+                <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-accent/10 border border-accent/30 text-accent font-mono text-xs">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Orbit QA Agent</span>
+                </div>
+                <h2 className="text-lg sm:text-xl font-mono font-bold max-w-md text-fg">
+                  Autonomous Web Workflow Testing & Failure Diagnosis
+                </h2>
+                <p className="text-xs sm:text-sm text-fg-400 max-w-lg leading-relaxed font-sans">
+                  Orbit QA automatically tests web workflows, detects failures, generates reproducible Playwright tests, and helps developers diagnose and verify fixes using isolated CreateOS sandboxes.
+                </p>
+                {!allocatedMinutes && (
+                  <Button
+                    onClick={() => setPricingModalOpen(true)}
+                    className="mt-2 text-xs font-mono bg-accent text-black hover:bg-accent/90 font-bold px-5 py-2.5 flex items-center gap-2"
                   >
-                    sandbox <ArrowUpRight className="size-4" />
-                  </a>
-                </h1>
+                    <CreditCard className="w-4 h-4" />
+                    <span>Choose Plan to Start Sandbox</span>
+                  </Button>
+                )}
               </div>
             )}
           </div>
@@ -549,6 +569,7 @@ export default function Home() {
           open={pricingModalOpen}
           onOpenChange={setPricingModalOpen}
           allocatedMinutes={allocatedMinutes}
+          mandatory={!allocatedMinutes}
           onPlanSelected={(mins) => {
             setAllocatedMinutes(mins);
             setTimeRemaining(mins * 60);
